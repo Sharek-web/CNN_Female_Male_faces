@@ -286,9 +286,9 @@ st.markdown("""
 
 
 
-WEIGHTS_URL = "https://drive.google.com/file/d/1cMB0PRX_7qkLIxw0AfMgzXrtAFyzc5jj/view?usp=drive_link"  # Ejemplo: "https://drive.google.com/uc?id=TU_ID&export=download"
+FILE_ID = "1cMB0PRX_7qkLIxw0AfMgzXrtAFyzc5jj"
+WEIGHTS_URL = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
 
-# Función para descargar pesos desde URL
 def download_weights(url, destination="model_weights.weights.h5"):
     """Descarga los pesos del modelo si no existen localmente"""
     if not os.path.exists(destination):
