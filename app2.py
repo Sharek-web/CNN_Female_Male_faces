@@ -1,9 +1,13 @@
 import streamlit as st
 import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, BatchNormalization, Flatten, Dense, Dropout
 import numpy as np
 import cv2
 from PIL import Image
 import matplotlib.pyplot as plt
+import os
+import urllib.request
 
 # Configuración de la página
 st.set_page_config(
@@ -280,14 +284,69 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
+
+WEIGHTS_URL = "https://drive.google.com/file/d/1cMB0PRX_7qkLIxw0AfMgzXrtAFyzc5jj/view?usp=drive_link"  # Ejemplo: "https://drive.google.com/uc?id=TU_ID&export=download"
+
+# Función para descargar pesos desde URL
+def download_weights(url, destination="model_weights.weights.h5"):
+    """Descarga los pesos del modelo si no existen localmente"""
+    if not os.path.exists(destination):
+        try:
+            st.info("📥 Descargando pesos del modelo...")
+            urllib.request.urlretrieve(url, destination)
+            st.success("✅ Pesos descargados correctamente")
+        except Exception as e:
+            st.error(f"❌ Error al descargar pesos: {str(e)}")
+            return False
+    return True
+
 # Función para cargar el modelo
 @st.cache_resource
 def load_model():
     try:
-        model = tf.keras.models.load_model('model.keras')
+        # Descargar pesos si es necesario
+        if not download_weights(WEIGHTS_URL):
+            st.error("⚠️ No se pudieron descargar los pesos del modelo")
+            st.info("""
+            **Para usar tu propio modelo:**
+            1. Sube `model_weights.weights.h5` a Google Drive
+            2. Haz clic derecho → "Obtener enlace" → "Cualquier persona con el enlace"
+            3. Copia el ID del enlace (parte después de /d/ y antes de /view)
+            4. Reemplaza la URL en el código con: 
+               `https://drive.google.com/uc?id=TU_ID&export=download`
+            """)
+            return None
+        
+        # Recrear la arquitectura exacta del modelo
+        model = Sequential([
+            Conv2D(32, (3,3), activation='relu', padding='same', input_shape=(224,224,3)),
+            BatchNormalization(),
+            MaxPooling2D((2,2)),
+            Conv2D(64, (3,3), activation='relu', padding='same'),
+            BatchNormalization(),
+            MaxPooling2D((2,2)),
+            Conv2D(128, (3,3), activation='relu', padding='same'),
+            BatchNormalization(),
+            MaxPooling2D((2,2)),
+            Conv2D(256, (3,3), activation='relu', padding='same'),
+            BatchNormalization(),
+            MaxPooling2D((2,2)),
+            Flatten(),
+            Dense(256, activation='relu'),
+            Dropout(0.5),
+            Dense(1, activation='sigmoid')
+        ])
+        
+        # Cargar los pesos
+        model.load_weights("model_weights.weights.h5")
+        
         return model
+        
     except Exception as e:
         st.error(f"❌ Error al cargar el modelo: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
         return None
 
 # Función para preprocesar la imagen
