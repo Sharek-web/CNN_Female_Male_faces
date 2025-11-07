@@ -291,7 +291,7 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     try:
-        model = tf.keras.models.load_model('model.keras')
+        model = tf.keras.models.load_model("models/model.keras")
         return model
     except Exception as e:
         st.error(f"❌ Error al cargar el modelo: {str(e)}")
