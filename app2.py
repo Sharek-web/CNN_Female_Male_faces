@@ -8,6 +8,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import os
 import urllib.request
+import requests
 
 # Configuración de la página
 st.set_page_config(
@@ -287,67 +288,68 @@ st.markdown("""
 
 
 FILE_ID = "1cMB0PRX_7qkLIxw0AfMgzXrtAFyzc5jj"
-WEIGHTS_URL = f"https://drive.google.com/uc?id={FILE_ID}&export=download"
+DESTINATION = "model_weights.weights.h5"
 
-def download_weights(url, destination="model_weights.weights.h5"):
-    """Descarga los pesos del modelo si no existen localmente"""
-    if not os.path.exists(destination):
-        try:
-            st.info("📥 Descargando pesos del modelo...")
-            urllib.request.urlretrieve(url, destination)
-            st.success("✅ Pesos descargados correctamente")
-        except Exception as e:
-            st.error(f"❌ Error al descargar pesos: {str(e)}")
-            return False
-    return True
+# Función para descargar archivos grandes de Google Drive
+def download_weights_from_drive(file_id, destination):
+    if os.path.exists(destination):
+        return True
+
+    URL = "https://docs.google.com/uc?export=download"
+    session = requests.Session()
+    response = session.get(URL, params={'id': file_id}, stream=True)
+
+    # Revisar si hay token de confirmación
+    token = None
+    for key, value in response.cookies.items():
+        if key.startswith('download_warning'):
+            token = value
+
+    if token:
+        params = {'id': file_id, 'confirm': token}
+        response = session.get(URL, params=params, stream=True)
+
+    try:
+        with open(destination, "wb") as f:
+            for chunk in response.iter_content(32768):
+                if chunk:
+                    f.write(chunk)
+        st.success("✅ Pesos descargados correctamente")
+        return True
+    except Exception as e:
+        st.error(f"❌ Error al descargar pesos: {str(e)}")
+        return False
+
 
 # Función para cargar el modelo
-@st.cache_resource
 def load_model():
-    try:
-        # Descargar pesos si es necesario
-        if not download_weights(WEIGHTS_URL):
-            st.error("⚠️ No se pudieron descargar los pesos del modelo")
-            st.info("""
-            **Para usar tu propio modelo:**
-            1. Sube `model_weights.weights.h5` a Google Drive
-            2. Haz clic derecho → "Obtener enlace" → "Cualquier persona con el enlace"
-            3. Copia el ID del enlace (parte después de /d/ y antes de /view)
-            4. Reemplaza la URL en el código con: 
-               `https://drive.google.com/uc?id=TU_ID&export=download`
-            """)
-            return None
-        
-        # Recrear la arquitectura exacta del modelo
-        model = Sequential([
-            Conv2D(32, (3,3), activation='relu', padding='same', input_shape=(224,224,3)),
-            BatchNormalization(),
-            MaxPooling2D((2,2)),
-            Conv2D(64, (3,3), activation='relu', padding='same'),
-            BatchNormalization(),
-            MaxPooling2D((2,2)),
-            Conv2D(128, (3,3), activation='relu', padding='same'),
-            BatchNormalization(),
-            MaxPooling2D((2,2)),
-            Conv2D(256, (3,3), activation='relu', padding='same'),
-            BatchNormalization(),
-            MaxPooling2D((2,2)),
-            Flatten(),
-            Dense(256, activation='relu'),
-            Dropout(0.5),
-            Dense(1, activation='sigmoid')
-        ])
-        
-        # Cargar los pesos
-        model.load_weights("model_weights.weights.h5")
-        
-        return model
-        
-    except Exception as e:
-        st.error(f"❌ Error al cargar el modelo: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
+    # Descargar pesos si es necesario
+    if not download_weights_from_drive(FILE_ID, DESTINATION):
         return None
+
+    # Recrear arquitectura
+    model = Sequential([
+        Conv2D(32, (3,3), activation='relu', padding='same', input_shape=(224,224,3)),
+        BatchNormalization(),
+        MaxPooling2D((2,2)),
+        Conv2D(64, (3,3), activation='relu', padding='same'),
+        BatchNormalization(),
+        MaxPooling2D((2,2)),
+        Conv2D(128, (3,3), activation='relu', padding='same'),
+        BatchNormalization(),
+        MaxPooling2D((2,2)),
+        Conv2D(256, (3,3), activation='relu', padding='same'),
+        BatchNormalization(),
+        MaxPooling2D((2,2)),
+        Flatten(),
+        Dense(256, activation='relu'),
+        Dropout(0.5),
+        Dense(1, activation='sigmoid')
+    ])
+
+    # Cargar pesos
+    model.load_weights(DESTINATION)
+    return model
 
 # Función para preprocesar la imagen
 def preprocess_image(image, target_size=(224, 224)):
